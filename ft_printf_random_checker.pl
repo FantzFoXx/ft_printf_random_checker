@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-use strict;
+#use strict;
 use warnings;
 use Getopt::Long;
 use	Cwd qw(abs_path);
@@ -18,6 +18,7 @@ my @rand_size_flag =	("", "h", "hh", "l", "ll", "j", "z");
 my @rand_flag = 		("", "0", " ", "+", "-", "#");
 my @rand_types =		("s", "d", "x", "X", "o", "u", "i");
 my $string = "kjhasdflkjhasdlfkj hasldkfj hasldk jhasdlfkjhasdl kjhasdflkjhasdflkjhasdflkja hsflkj ahsdflk jhasdlfkjh";
+my @format_strings_list;
 
 
 # global option command line variables 
@@ -88,17 +89,57 @@ sub push_generated_function
 	my $format_string = generate_random_format_string($type);
 	if ($type eq "s")
 	{
-		print $real_file "	printf(\"Bonjour " . $format_string . " ceci est un test\", \"first test\");\n";
-		print $ft_file "	ft_printf(\"Bonjour " .  $format_string . " ceci est un test\", \"first test\");\n";
-		print $real_file "	printf(\"format string : \'%s\' with value : %s\", \"$format_string\", \"first test\");";
-		print $ft_file "	printf(\"format string : \'%s\' with value : %s\", \"$format_string\", \"first test\");";
+		print $real_file "	printf(\"Bonjour " . $format_string . " ceci est un test\\n\", \"first test\");fflush(stdout);\n";
+		print $ft_file "	ft_printf(\"Bonjour " .  $format_string . " ceci est un test\\n\", \"first test\");\n";
+		#print $real_file "	printf(\"format string : \'%s\' with value : %s\", \"$format_string\", \"first test\");";
+		push(@format_strings_list, "format string : \'$format_string\' with value : \'first test\'");
+		#print $ft_file "	printf(\"format string : \'%s\' with value : %s\", \"$format_string\", \"first test\");";
 	}
 	else
 	{
-		print $real_file "	i = " . int(rand(10000000000)) . ";\n	printf(\"Bonjour " . $format_string . " ceci est un test\", i);\n";
-		print $ft_file "	i = " . int(rand(10000000000)) . ";\n	ft_printf(\"Bonjour " . $format_string . " ceci est un test\", i);\n";
-		print $real_file "	printf(\"format string : \'%s\' with value : %lld\", \"$format_string\", i);";
-		print $ft_file "	printf(\"format string : \'%s\' with value : %lld\", \"$format_string\", i);";
+		my $rand_value = int(rand(10000000000));
+		print $real_file "	i = " . $rand_value . ";\n	printf(\"Bonjour " . $format_string . " ceci est un test\\n\", i);fflush(stdout);\n";
+		print $ft_file "	i = " . $rand_value . ";\n	ft_printf(\"Bonjour " . $format_string . " ceci est un test\\n\", i);\n";
+		#print $real_file "	printf(\"format string : \'%s\' with value : %lld\", \"$format_string\", i);";
+		push(@format_strings_list, "format string : \'$format_string\' with value : $rand_value");
+		#print $ft_file "	printf(\"format string : \'%s\' with value : %lld\", \"$format_string\", i);";
+	}
+}
+
+sub pipe_from_fork ($) {
+	my $parent = shift;
+
+	pipe $parent, my $child or die;
+	my $pid = fork();
+	die "fork() failed: $!" unless defined $pid;
+	if ($pid) {
+		close $child;
+	}
+	else {
+		close $parent;
+		open(STDOUT, ">&=" . fileno($child)) or die;
+	}
+	$pid;
+}
+
+sub pull_data_form_binary
+{
+	my $binary = shift;
+	if (pipe_from_fork('WRITER')) {
+		my @values;
+
+		while (<WRITER>) {
+			push(@values, readline(WRITER));
+		}
+		close WRITER;
+		#print @values;
+		return (@values);
+	}
+	else
+	{
+		exec($binary)
+			or die ("printf failed");
+		exit;
 	}
 }
 
@@ -141,7 +182,7 @@ open(my $real_file_gen, ">", "$filename")
 generate_base_file($real_file_gen);
 generate_base_file($ft_file_gen);
 
-print "generating random format strings... ";
+print "generating random format strings...\n";
 
 for (1..$gen_limit) {
 	push_generated_function($ft_file_gen, $real_file_gen);
@@ -152,7 +193,7 @@ end_file($real_file_gen);
 
 print "Done.\n";
 print "$count_lines generated lines\n";
-print "compiling .c files... ";
+print "compiling .c files...\n";
 
 system("/usr/bin/make -C $libftprintf_dir >/dev/null") == 0
 	or die "make encountered a problem";
@@ -162,11 +203,24 @@ system("/usr/bin/clang random_tests.c -I $libftprintf_dir/includes -I $libftprin
 	or die "system command clang failed on random_test.c";
 
 print "Done.\n";
-print "Executing programs... ";
-print "Done.\n";
-print "Computing data... ";
+print "Executing programs...\n";
 
-system("./ft_out > ft_out_out ; ./ft_real > ft_real_out ; diff ft_out_out ft_real_out > diff_file ; cat diff_file");
+my @ft_values = pull_data_form_binary("./ft_out");
+my @real_values = pull_data_form_binary("./ft_real");
+
+print "Done.\n";
+print "Computing data...\n";
+
+#system("./ft_out > ft_out_out ; ./ft_real > ft_real_out ; diff ft_out_out ft_real_out > diff_file ; cat diff_file");
+foreach my $i (0..$gen_limit) {
+	if ($ft_values[$i] ne $real_values[$i]) {
+		print STDOUT	"diff : \n";
+		print STDOUT	"ft_printf	: \'" . $ft_values[$i] . "\'\n";
+		print STDOUT	"printf		: \'" . $real_values[$i] . "\'\n";
+		print STDOUT	"on " . $format_strings_list[$i] . "\n";
+		print STDOUT	"---------\n";
+	}
+}
 
 print "Done.\n";
 
