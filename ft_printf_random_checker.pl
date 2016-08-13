@@ -3,17 +3,20 @@
 use strict;
 use warnings;
 use Getopt::Long;
+use	Cwd qw(abs_path);
 
 my @file_lines = 		( 	"#include <stdio.h>", 
 							"#include \"ft_printf.h\"", 
 							"",
 							"int		main(void)",
 							"{",
+							"	intmax_t i = 0;",
 							"	return (0);",
 							"}");
 
 my @rand_size_flag =	("", "h", "hh", "l", "ll", "j", "z");
 my @rand_flag = 		("", "0", " ", "+", "-", "#");
+my @rand_types =		("s", "d", "x", "X", "o", "u", "i");
 my $string = "kjhasdflkjhasdlfkj hasldkfj hasldk jhasdlfkjhasdl kjhasdflkjhasdflkjhasdflkja hsflkj ahsdflk jhasdlfkjh";
 
 
@@ -40,7 +43,7 @@ sub generate_base_file
 {
 	my ($file) = @_;
 
-	for my $i (0..4) {
+	for my $i (0..5) {
 		  print $file "$file_lines[$i]\n";
 	  }
 }
@@ -49,18 +52,9 @@ sub end_file
 {
 	my ($file) = @_;
 
-	for my $i (5..6) {
+	for my $i (6..7) {
 		  print $file "$file_lines[$i]\n";
 	  }
-}
-
-sub push_generated_function
-{
-	my ($ft_file, $real_file) = @_;
-
-	$count_lines++;
-	print $real_file "	printf(\"Bonjour " . generate_random_format_string("s") . " ceci est un test\\n\", \"first test\");\n";
-	print $ft_file "	ft_printf(\"Bonjour " . generate_random_format_string("s") . " ceci est un test\\n\", \"first test\");\n";
 }
 
 sub generate_random_format_string
@@ -85,6 +79,29 @@ sub generate_random_format_string
 	return $format_string;
 }
 
+sub push_generated_function
+{
+	my ($ft_file, $real_file) = @_;
+
+	$count_lines++;
+	my $type = $rand_types[int(rand(6))];
+	my $format_string = generate_random_format_string($type);
+	if ($type eq "s")
+	{
+		print $real_file "	printf(\"Bonjour " . $format_string . " ceci est un test\", \"first test\");\n";
+		print $ft_file "	ft_printf(\"Bonjour " .  $format_string . " ceci est un test\", \"first test\");\n";
+		print $real_file "	printf(\"format string : \'%s\' with value : %s\", \"$format_string\", \"first test\");";
+		print $ft_file "	printf(\"format string : \'%s\' with value : %s\", \"$format_string\", \"first test\");";
+	}
+	else
+	{
+		print $real_file "	i = " . int(rand(10000000000)) . ";\n	printf(\"Bonjour " . $format_string . " ceci est un test\", i);\n";
+		print $ft_file "	i = " . int(rand(10000000000)) . ";\n	ft_printf(\"Bonjour " . $format_string . " ceci est un test\", i);\n";
+		print $real_file "	printf(\"format string : \'%s\' with value : %lld\", \"$format_string\", i);";
+		print $ft_file "	printf(\"format string : \'%s\' with value : %lld\", \"$format_string\", i);";
+	}
+}
+
 my $filename = "random_tests.c";
 my $ft_filename = "ft_random_tests.c";
 
@@ -95,11 +112,25 @@ GetOptions ("clean" => \$clean,
 			"verbose"  => \$verbose)
 or die("Error in command line arguments\n");
 
+
+if ($clean)
+{
+	system("rm ft_random_tests.c random_tests.c ft_real ft_out 2>&-");
+	exit;
+}
+
 if ($libftprintf_dir eq "") {
 	die("No valid project dir found\n");
 }
 
+$libftprintf_dir = abs_path($libftprintf_dir);
+
 print_banner();
+
+# creating tmp dir
+
+mkdir("./tmp");
+chdir("./tmp");
 
 open(my $ft_file_gen, ">", "$ft_filename")
 	or die "Can't open < random_tests.c: $!";
@@ -110,24 +141,36 @@ open(my $real_file_gen, ">", "$filename")
 generate_base_file($real_file_gen);
 generate_base_file($ft_file_gen);
 
-print "generating random format strings...\n";
+print "generating random format strings... ";
 
-for (0..100) {
+for (1..$gen_limit) {
 	push_generated_function($ft_file_gen, $real_file_gen);
 }
 
 end_file($ft_file_gen);
 end_file($real_file_gen);
 
-print "finished.\n";
-print "compiling data...\n";
+print "Done.\n";
+print "$count_lines generated lines\n";
+print "compiling .c files... ";
 
-system("make -C $libftprintf_dir") == 0
-	or die "no valid makefile found";
-system("clang ft_random_tests.c -I $libftprintf_dir/includes -L$libftprintf_dir -lftprintf -o ft_out") == 0
+system("/usr/bin/make -C $libftprintf_dir >/dev/null") == 0
+	or die "make encountered a problem";
+system("/usr/bin/clang ft_random_tests.c -I $libftprintf_dir/includes -I $libftprintf_dir/libft/includes -L$libftprintf_dir -lftprintf -o ft_out 2>&-") == 0
 	or die "system command clang failed on ft_random_test.c";
-system("clang random_tests.c -o ft_real") == 0
+system("/usr/bin/clang random_tests.c -I $libftprintf_dir/includes -I $libftprintf_dir/libft/includes -o ft_real 2>&-") == 0
 	or die "system command clang failed on random_test.c";
 
+print "Done.\n";
+print "Executing programs... ";
+print "Done.\n";
+print "Computing data... ";
+
+system("./ft_out > ft_out_out ; ./ft_real > ft_real_out ; diff ft_out_out ft_real_out > diff_file ; cat diff_file");
+
+print "Done.\n";
+
+chdir("..");
+#rmdir("./tmp");
 close($ft_file_gen);
 close($real_file_gen);
