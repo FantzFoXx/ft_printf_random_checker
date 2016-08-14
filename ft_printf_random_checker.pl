@@ -4,6 +4,8 @@
 use warnings;
 use Getopt::Long;
 use	Cwd qw(abs_path);
+use Term::ANSIColor qw(:constants);
+
 
 my @file_lines = 		( 	"#include <stdio.h>", 
 							"#include \"ft_printf.h\"", 
@@ -40,6 +42,10 @@ sub print_banner
 	print "--------------------------------------------------------------------------------\n";
 }
 
+sub done {
+	print GREEN, "Done.\n", RESET;
+}
+
 sub generate_base_file
 {
 	my ($file) = @_;
@@ -72,7 +78,9 @@ sub generate_random_format_string
 	if ($rand == 1) {
 		$format_string .= "." . int(rand(10));
 	}
-	$format_string .= $rand_size_flag[int(rand(6))];
+	if ($type ne "s") {
+		$format_string .= $rand_size_flag[int(rand(6))];
+	}
 	$format_string .= "$type";
 	if ($verbose) {
 		print "generated format string : $format_string\n";
@@ -91,18 +99,14 @@ sub push_generated_function
 	{
 		print $real_file "	printf(\"Bonjour " . $format_string . " ceci est un test\\n\", \"first test\");fflush(stdout);\n";
 		print $ft_file "	ft_printf(\"Bonjour " .  $format_string . " ceci est un test\\n\", \"first test\");\n";
-		#print $real_file "	printf(\"format string : \'%s\' with value : %s\", \"$format_string\", \"first test\");";
 		push(@format_strings_list, "format string : \'$format_string\' with value : \'first test\'");
-		#print $ft_file "	printf(\"format string : \'%s\' with value : %s\", \"$format_string\", \"first test\");";
 	}
 	else
 	{
 		my $rand_value = int(rand(10000000000));
 		print $real_file "	i = " . $rand_value . ";\n	printf(\"Bonjour " . $format_string . " ceci est un test\\n\", i);fflush(stdout);\n";
 		print $ft_file "	i = " . $rand_value . ";\n	ft_printf(\"Bonjour " . $format_string . " ceci est un test\\n\", i);\n";
-		#print $real_file "	printf(\"format string : \'%s\' with value : %lld\", \"$format_string\", i);";
 		push(@format_strings_list, "format string : \'$format_string\' with value : $rand_value");
-		#print $ft_file "	printf(\"format string : \'%s\' with value : %lld\", \"$format_string\", i);";
 	}
 }
 
@@ -126,13 +130,12 @@ sub pull_data_form_binary
 {
 	my $binary = shift;
 	if (pipe_from_fork('WRITER')) {
-		my @values;
-
-		while (<WRITER>) {
-			push(@values, readline(WRITER));
+		my @values = [];
+		while ( my $line = <WRITER> ) {
+			chomp($line);
+			push(@values, $line);
 		}
 		close WRITER;
-		#print @values;
 		return (@values);
 	}
 	else
@@ -142,6 +145,8 @@ sub pull_data_form_binary
 		exit;
 	}
 }
+
+# ###################### MAIN #######################
 
 my $filename = "random_tests.c";
 my $ft_filename = "ft_random_tests.c";
@@ -191,7 +196,7 @@ for (1..$gen_limit) {
 end_file($ft_file_gen);
 end_file($real_file_gen);
 
-print "Done.\n";
+done();
 print "$count_lines generated lines\n";
 print "compiling .c files...\n";
 
@@ -202,29 +207,37 @@ system("/usr/bin/clang ft_random_tests.c -I $libftprintf_dir/includes -I $libftp
 system("/usr/bin/clang random_tests.c -I $libftprintf_dir/includes -I $libftprintf_dir/libft/includes -o ft_real 2>&-") == 0
 	or die "system command clang failed on random_test.c";
 
-print "Done.\n";
+done();
 print "Executing programs...\n";
 
 my @ft_values = pull_data_form_binary("./ft_out");
 my @real_values = pull_data_form_binary("./ft_real");
 
-print "Done.\n";
+print scalar(@ft_values) . " from ft_out\n";
+print scalar(@real_values) . " from ft_real\n";
+
+done();
 print "Computing data...\n";
 
-#system("./ft_out > ft_out_out ; ./ft_real > ft_real_out ; diff ft_out_out ft_real_out > diff_file ; cat diff_file");
-foreach my $i (0..$gen_limit) {
-	if ($ft_values[$i] ne $real_values[$i]) {
-		print STDOUT	"diff : \n";
-		print STDOUT	"ft_printf	: \'" . $ft_values[$i] . "\'\n";
-		print STDOUT	"printf		: \'" . $real_values[$i] . "\'\n";
-		print STDOUT	"on " . $format_strings_list[$i] . "\n";
-		print STDOUT	"---------\n";
+my $failed = 0;
+foreach my $i (1..$gen_limit - 1) {
+	if (defined $real_values[$i] && $ft_values[$i] ne $real_values[$i]) {
+		print STDOUT	BLUE, "diff : \n", RESET;
+		print STDOUT	RED, "ft_printf	: \'" . $ft_values[$i] . "\'\n", RESET;
+		print STDOUT	GREEN, "printf		: \'" . $real_values[$i] . "\'\n", RESET;
+		print STDOUT	YELLOW, "on " . $format_strings_list[$i - 1] . "\n", RESET;
+		print STDOUT	BLUE, "---------\n", RESET;
+		$failed++;
 	}
 }
 
-print "Done.\n";
+done();
+
+print RED, "$failed failed tests.\n", RESET;
 
 chdir("..");
 #rmdir("./tmp");
 close($ft_file_gen);
 close($real_file_gen);
+
+######################################################################
