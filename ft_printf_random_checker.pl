@@ -121,7 +121,6 @@ sub push_generated_function
 	$count_lines++;
 	my $type = $rand_types[int(rand(6))];
 	my ($format_string, $sflag) = generate_random_format_string($type);
-	print "flag = $sflag\n";
 	if ($type eq "s")
 	{
 		print $real_file "	printf(\"Bonjour " . $format_string . " ceci est un test\\n\", \"first test\");fflush(stdout);\n";
@@ -139,7 +138,9 @@ sub push_generated_function
 			else {
 				$cast = $decimal_casts{o}{$sflag};
 			}
-			print "cast : \'$cast\' for type : \'$type\' with flag : \'$sflag\'\n";
+			if ($verbose) {
+				print "cast : \'$cast\' for type : \'$type\' with flag : \'$sflag\'\n";
+			}
 		}
 		elsif ($type ne "s") {
 			$cast = "(int)";
@@ -262,6 +263,10 @@ done();
 print "Computing data...\n";
 
 my $failed = 0;
+
+open(my $trace_file, ">", "diff_trace")
+	or die "Can't open < random_tests.c: $!";
+
 foreach my $i (1..$gen_limit - 1) {
 	if (defined $real_values[$i] && $ft_values[$i] ne $real_values[$i]) {
 		print STDOUT	BLUE, "diff : \n", RESET;
@@ -269,6 +274,13 @@ foreach my $i (1..$gen_limit - 1) {
 		print STDOUT	GREEN, "printf		: \'" . $real_values[$i] . "\'\n", RESET;
 		print STDOUT	YELLOW, "on " . $format_strings_list[$i - 1] . "\n", RESET;
 		print STDOUT	BLUE, "---------\n", RESET;
+
+		print $trace_file "diff : \n";
+		print $trace_file "ft_printf	: \'" . $ft_values[$i] . "\'\n";
+		print $trace_file "printf		: \'" . $real_values[$i] . "\'\n";
+		print $trace_file "on " . $format_strings_list[$i - 1] . "\n";
+		print $trace_file "---------\n";
+
 		$failed++;
 	}
 }
@@ -279,6 +291,7 @@ print RED, "$failed failed tests.\n", RESET;
 
 chdir("..");
 #rmdir("./tmp");
+close($trace_file);
 close($ft_file_gen);
 close($real_file_gen);
 
