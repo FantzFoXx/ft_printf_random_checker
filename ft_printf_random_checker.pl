@@ -5,6 +5,7 @@ use warnings;
 use Getopt::Long;
 use	Cwd qw(abs_path);
 use Term::ANSIColor qw(:constants);
+use Data::Dumper;
 
 
 my @file_lines = 		( 	"#include <stdio.h>", 
@@ -21,6 +22,28 @@ my @rand_flag = 		("", "0", " ", "+", "-", "#");
 my @rand_types =		("s", "d", "x", "X", "o", "u", "i");
 my $string = "kjhasdflkjhasdlfkj hasldkfj hasldk jhasdlfkjhasdl kjhasdflkjhasdflkjhasdflkja hsflkj ahsdflk jhasdlfkjh";
 my @format_strings_list;
+
+my %decimal_casts = (
+	o => {
+		hh => "(unsigned char)", 
+		h  => "(unsigned short)", 
+		l  => "(unsigned long)", 
+		ll => "(unsigned long long)", 
+		j  => "(uintmax_t)", 
+		z  => "(size_t)"
+	}, 
+	d => {
+		hh => "(signed char)",	
+		h  => "(short)",			
+		l  => "(long)",			
+		ll => "(long long)",		
+		j  => "(intmax_t)",		
+		z  => "(size_t)"			
+	}
+);
+
+
+
 
 
 # global option command line variables 
@@ -69,6 +92,7 @@ sub generate_random_format_string
 	my ($type) = @_;
 	my $rand = int(rand(4));
 	my $format_string = "%";
+	my $sflag = "";
 	for (my $i = 0; $i <= $rand; $i++)
 	{
 		my $rand_flag_id = int(rand(6));
@@ -79,22 +103,25 @@ sub generate_random_format_string
 		$format_string .= "." . int(rand(10));
 	}
 	if ($type ne "s") {
-		$format_string .= $rand_size_flag[int(rand(6))];
+		$sflag = $rand_size_flag[int(rand(6))];
+		$format_string .= $sflag;
 	}
 	$format_string .= "$type";
 	if ($verbose) {
 		print "generated format string : $format_string\n";
 	}
-	return $format_string;
+	return ($format_string, $sflag);
 }
 
 sub push_generated_function
 {
 	my ($ft_file, $real_file) = @_;
 
+	#print Dumper \%decimal_casts;
 	$count_lines++;
 	my $type = $rand_types[int(rand(6))];
-	my $format_string = generate_random_format_string($type);
+	my ($format_string, $sflag) = generate_random_format_string($type);
+	print "flag = $sflag\n";
 	if ($type eq "s")
 	{
 		print $real_file "	printf(\"Bonjour " . $format_string . " ceci est un test\\n\", \"first test\");fflush(stdout);\n";
@@ -103,10 +130,25 @@ sub push_generated_function
 	}
 	else
 	{
-		my $rand_value = int(rand(10000000000));
-		print $real_file "	i = " . $rand_value . ";\n	printf(\"Bonjour " . $format_string . " ceci est un test\\n\", i);fflush(stdout);\n";
-		print $ft_file "	i = " . $rand_value . ";\n	ft_printf(\"Bonjour " . $format_string . " ceci est un test\\n\", i);\n";
-		push(@format_strings_list, "format string : \'$format_string\' with value : $rand_value");
+		my $rand_value = int(rand(1000000000000000000));
+		my $cast = "";
+		if ($sflag ne "") {
+			if ($type eq "d" || $type eq "i") {
+				$cast = $decimal_casts{d}{$sflag};
+			}
+			else {
+				$cast = $decimal_casts{o}{$sflag};
+			}
+			print "cast : \'$cast\' for type : \'$type\' with flag : \'$sflag\'\n";
+		}
+		elsif ($type ne "s") {
+			$cast = "(int)";
+		}
+		#print $real_file "	i = " . $rand_value . ";\n	printf(\"Bonjour " . $format_string . " ceci est un test\\n\", ". $cast ." i);fflush(stdout);\n";
+		#print $ft_file "	i = " . $rand_value . ";\n	ft_printf(\"Bonjour " . $format_string . " ceci est un test\\n\", ". $cast ." i);\n";
+		print $real_file "	printf(\"Bonjour " . $format_string . " ceci est un test\\n\", ". $cast ." $rand_value);fflush(stdout);\n";
+		print $ft_file "	ft_printf(\"Bonjour " . $format_string . " ceci est un test\\n\", ". $cast ." $rand_value);\n";
+		push(@format_strings_list, "format string : \'$format_string\' with value : $cast $rand_value");
 	}
 }
 
