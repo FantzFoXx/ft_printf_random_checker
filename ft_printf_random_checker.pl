@@ -241,10 +241,14 @@ end_file($real_file_gen);
 
 done();
 print "$count_lines generated lines\n";
-print "compiling .c files...\n";
+print "compiling ft_printf...\n";
 
 system("/usr/bin/make -C $libftprintf_dir >/dev/null") == 0
 	or die "make encountered a problem";
+
+done();
+print "compiling .c files...\n";
+
 system("/usr/bin/clang ft_random_tests.c -I $libftprintf_dir/includes -I $libftprintf_dir/libft/includes -L$libftprintf_dir -lftprintf -o ft_out 2>&-") == 0
 	or die "system command clang failed on ft_random_test.c";
 system("/usr/bin/clang random_tests.c -I $libftprintf_dir/includes -I $libftprintf_dir/libft/includes -o ft_real 2>&-") == 0
@@ -256,8 +260,8 @@ print "Executing programs...\n";
 my @ft_values = pull_data_form_binary("./ft_out");
 my @real_values = pull_data_form_binary("./ft_real");
 
-print scalar(@ft_values) . " from ft_out\n";
-print scalar(@real_values) . " from ft_real\n";
+print scalar(@ft_values - 1) . " from ft_out\n";
+print scalar(@real_values - 1) . " from ft_real\n";
 
 done();
 print "Computing data...\n";
@@ -269,11 +273,13 @@ open(my $trace_file, ">", "diff_trace")
 
 foreach my $i (1..$gen_limit - 1) {
 	if (defined $real_values[$i] && $ft_values[$i] ne $real_values[$i]) {
-		print STDOUT	BLUE, "diff : \n", RESET;
-		print STDOUT	RED, "ft_printf	: \'" . $ft_values[$i] . "\'\n", RESET;
-		print STDOUT	GREEN, "printf		: \'" . $real_values[$i] . "\'\n", RESET;
-		print STDOUT	YELLOW, "on " . $format_strings_list[$i - 1] . "\n", RESET;
-		print STDOUT	BLUE, "---------\n", RESET;
+		if ($verbose) {
+			print STDOUT	BLUE, "diff : \n", RESET;
+			print STDOUT	RED, "ft_printf	: \'" . $ft_values[$i] . "\'\n", RESET;
+			print STDOUT	GREEN, "printf		: \'" . $real_values[$i] . "\'\n", RESET;
+			print STDOUT	YELLOW, "on " . $format_strings_list[$i - 1] . "\n", RESET;
+			print STDOUT	BLUE, "---------\n", RESET;
+		}
 
 		print $trace_file "diff : \n";
 		print $trace_file "ft_printf	: \'" . $ft_values[$i] . "\'\n";
@@ -286,6 +292,8 @@ foreach my $i (1..$gen_limit - 1) {
 }
 
 done();
+
+print "trace diff stored in tmp/diff_trace\n";
 
 print RED, "$failed failed tests.\n", RESET;
 
